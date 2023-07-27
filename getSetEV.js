@@ -74,6 +74,9 @@ async function getCards(set, p = 1, foils = false) {
 }
 
 async function saveJsonFile(name, json) {
+  if (!fs.existsSync("ck-data")) {
+    fs.mkdirSync("ck-data");
+  }
   fs.writeFileSync(
     `ck-data/${name}.json`,
     JSON.stringify(json, null, 2),
