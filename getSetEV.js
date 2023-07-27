@@ -3,10 +3,10 @@ import axios from "axios";
 import slugify from "slugify";
 import fs from "fs";
 
-async function getCards(set, p = 1, foils = false) {
-  const cardKingdomUrl = `https://www.cardkingdom.com/mtg/${slugify(
-    set
-  ).toLowerCase()}/${foils ? "foils" : "singles"}`;
+async function getCards(set, setSlug, p = 1, foils = false, variants = false) {
+  const cardKingdomUrl = `https://www.cardkingdom.com/mtg/${setSlug}/${
+    foils ? "foils" : "singles"
+  }`;
   const cardKingdomResponse = await axios.get(`${cardKingdomUrl}?page=${p}`, {
     headers: {
       Cookie: "limit=100",
@@ -17,7 +17,7 @@ async function getCards(set, p = 1, foils = false) {
   const cardsRaw = $(".mainListing .itemContentWrapper").toArray();
   const cards = [];
   for (const card of cardsRaw) {
-    const cardName = $(".productDetailTitle", card).text();
+    let cardName = $(".productDetailTitle", card).text();
     const cardPrice = parseFloat(
       $(".amtAndPrice .stylePrice", card).text().trim().replace("$", "")
     );
@@ -39,23 +39,49 @@ async function getCards(set, p = 1, foils = false) {
     } else if (cardRarityRaw.includes("(C)")) {
       cardRarity = "Common";
     }
+
     let borderless = false;
+    let foilEtched = false;
+    let texturedFoil = false;
+    let extendedArt = false;
+    let skip = false;
+
     if (cardName.includes("(Borderless)")) {
       borderless = true;
       cardName = cardName.replace("(Borderless)", "").trim();
     }
-    let foilEtched = false;
     if (cardName.includes("(Foil Etched)")) {
       foilEtched = true;
       cardName = cardName.replace("(Foil Etched)", "").trim();
     }
-    let texturedFoil = false;
-    if (cardName.includes("(Tectured Foil)")) {
+    if (cardName.includes("(Textured Foil)")) {
       texturedFoil = true;
-      cardName = cardName.replace("(Tectured Foil)", "").trim();
+      cardName = cardName.replace("(Textured Foil)", "").trim();
+    }
+    if (cardName.includes("(Textured Foil Borderless)")) {
+      texturedFoil = true;
+      borderless = true;
+      cardName = cardName.replace("(Textured Foil Borderless)", "").trim();
+    }
+    if (cardName.includes("(Extended Art)")) {
+      extendedArt = true;
+      cardName = cardName.replace("(Extended Art)", "").trim();
+    }
+    if (cardName.includes(`(${collectorNumber})`)) {
+      cardName = cardName.replace(`(${collectorNumber})`, "").trim();
+    }
+    if (
+      cardName.includes(
+        "(Foil Etched Display Commander - Not Tournament Legal)"
+      )
+    ) {
+      skip = true;
+    }
+    if (!cardRarity) {
+      skip = true;
     }
 
-    if (cardRarity) {
+    if (!skip) {
       cards.push({
         set,
         cardName,
@@ -67,18 +93,42 @@ async function getCards(set, p = 1, foils = false) {
         foil: foils,
         foilEtched,
         texturedFoil,
+        extendedArt,
+        variant: variants,
       });
     }
   }
+
   return cards;
 }
 
-async function saveJsonFile(name, json) {
+function needsUpdate(setSlug) {
+  if (!fs.existsSync("ck-data")) {
+    console.log('No data folder found, updating...');
+    return true;
+  }
+  if (fs.existsSync(`ck-data/${setSlug}.json`)) {
+    const metadata = fs.statSync(`ck-data/${setSlug}.json`);
+    const now = new Date();
+    const diff = (now - metadata.mtime) / 60000;
+    if (diff > 60) {
+      console.log(`Set data for ${setSlug} older than 1h, updating...`);
+      return true;
+    }
+  } else {
+    console.log(`No set data found for ${setSlug}, updating...`);
+    return true;
+  }
+  console.log(`Set data for ${setSlug} up to date, using local data...`)
+  return false;
+}
+
+function saveJsonFile(setSlug, json) {
   if (!fs.existsSync("ck-data")) {
     fs.mkdirSync("ck-data");
   }
   fs.writeFileSync(
-    `ck-data/${name}.json`,
+    `ck-data/${setSlug}.json`,
     JSON.stringify(json, null, 2),
     function (err) {
       if (err) throw err;
@@ -86,12 +136,17 @@ async function saveJsonFile(name, json) {
   );
 }
 
-async function getAllCards(set) {
+async function getAllCards(set, variants = false) {
+  const setSlug = slugify(set).toLowerCase();
+  if (!needsUpdate(setSlug)) {
+    return JSON.parse(fs.readFileSync(`ck-data/${setSlug}.json`));
+  }
+
   process.stdout.write(`Fetch prices for ${set} Singles | pages: `);
   let cards = [];
   let p = 1;
   while (true) {
-    const newCards = await getCards(set, p, false);
+    const newCards = await getCards(set, setSlug, p, false);
     if (newCards.length === 0) {
       break;
     }
@@ -103,7 +158,7 @@ async function getAllCards(set) {
   process.stdout.write(`Fetch prices for ${set} Foils | pages: `);
   p = 1;
   while (true) {
-    const newCards = await getCards(set, p, true);
+    const newCards = await getCards(set, setSlug, p, true);
     if (newCards.length === 0) {
       break;
     }
@@ -112,14 +167,51 @@ async function getAllCards(set) {
     p++;
   }
   process.stdout.write(`\n`);
+  if (variants) {
+    process.stdout.write(`Fetch prices for ${set} Variant Singles | pages: `);
+    p = 1;
+    while (true) {
+      const newCards = await getCards(
+        set,
+        setSlug + "-variants",
+        p,
+        false,
+        true
+      );
+      if (newCards.length === 0) {
+        break;
+      }
+      process.stdout.write(`${p > 1 ? "," : ""}${p}`);
+      cards = cards.concat(newCards);
+      p++;
+    }
+    process.stdout.write(`\n`);
+    process.stdout.write(`Fetch prices for ${set} Variant Foils | pages: `);
+    p = 1;
+    while (true) {
+      const newCards = await getCards(
+        set,
+        setSlug + "-variants",
+        p,
+        true,
+        true
+      );
+      if (newCards.length === 0) {
+        break;
+      }
+      process.stdout.write(`${p > 1 ? "," : ""}${p}`);
+      cards = cards.concat(newCards);
+      p++;
+    }
+    process.stdout.write(`\n`);
+  }
+  console.log(`Fetched ${cards.length + 1} cards.`);
+  saveJsonFile(setSlug, cards);
   return cards;
 }
 
 async function calcEv(set, boosterTemplate, setLimit) {
-  const cards = await getAllCards(set);
-  saveJsonFile(slugify(set).toLowerCase(), cards);
-  console.log(`Fetched ${cards.length + 1} cards.`);
-
+  const cards = await getAllCards(set, true);
   let priceMap = Object.keys(boosterTemplate).reduce((priceMap, slot) => {
     priceMap[slot] = 0;
     return priceMap;
