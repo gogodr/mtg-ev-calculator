@@ -19,9 +19,19 @@ async function calcEv(set, template) {
     for (const slot of Object.keys(template)) {
       if (
         classificationMap[slot] &&
-        classificationMap[slot](card, classificationDataMapBySet[set])
+        classificationMap[slot].classify(card, classificationDataMapBySet[set])
       ) {
-        priceMap[slot] += card.cardPrice < 1 ? 0 : card.cardPrice;
+        let price =
+          (card.cardPrice < 1 ? 0 : card.cardPrice) *
+          classificationMap[slot].distribution[card.cardRarity];
+
+        if (classificationMap[slot].extraDistribution) {
+          price *=
+            classificationMap[slot].extraDistribution.distribution[
+              card[classificationMap[slot].extraDistribution.attr]
+            ];
+        }
+        priceMap[slot] += price;
         cardCountMap[slot]++;
       }
     }
@@ -37,7 +47,7 @@ async function calcEv(set, template) {
   }, {});
   totalValue = Math.round(totalValue * 100) / 100;
 
-  for(const avgValueKey in avgValue){
+  for (const avgValueKey in avgValue) {
     console.log(` • ${avgValueKey}: \x1b[32m$${avgValue[avgValueKey]}\x1b[0m`);
   }
   return totalValue;
