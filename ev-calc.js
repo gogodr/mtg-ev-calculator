@@ -38,7 +38,8 @@ async function calcEv(set, template) {
   let totalValue = 0;
   let avgValue = Object.keys(template).reduce((avgMap, slot) => {
     const slotValue =
-      Math.round((priceMap[slot] / cardCountMap[slot]) * 100) / 100;
+      Math.round(((priceMap[slot] || 0) / (cardCountMap[slot] || 1)) * 100) /
+      100;
     avgMap[`${template[slot]}x ${slot}`] =
       Math.round(slotValue * template[slot] * 100) / 100;
     totalValue += avgMap[`${template[slot]}x ${slot}`];
