@@ -21,18 +21,17 @@ async function calcEv(set, template) {
         classificationMap[slot] &&
         classificationMap[slot].classify(card, classificationDataMapBySet[set])
       ) {
-        let price =
-          (card.cardPrice < 1 ? 0 : card.cardPrice) *
-          classificationMap[slot].distribution[card.cardRarity];
+        let weight = classificationMap[slot].distribution[card.cardRarity];
+        let price = card.cardPrice < 1 ? 0 : card.cardPrice;
 
         if (classificationMap[slot].extraDistribution) {
-          price *=
+          weight *=
             classificationMap[slot].extraDistribution.distribution[
               card[classificationMap[slot].extraDistribution.attr]
             ];
         }
-        priceMap[slot] += price;
-        cardCountMap[slot]++;
+        priceMap[slot] += price * weight;
+        cardCountMap[slot] += weight;
       }
     }
   }
