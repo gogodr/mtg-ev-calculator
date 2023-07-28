@@ -25,20 +25,21 @@ async function calcEv(set, template) {
         cardCountMap[slot]++;
       }
     }
-    priceMap[card.cardRarity] += card.cardPrice;
-    cardCountMap[card.cardRarity]++;
   }
-
   let totalValue = 0;
   let avgValue = Object.keys(template).reduce((avgMap, slot) => {
+    const slotValue =
+      Math.round((priceMap[slot] / cardCountMap[slot]) * 100) / 100;
     avgMap[`${template[slot]}x ${slot}`] =
-      Math.round((priceMap[slot] / cardCountMap[slot]) * template[slot] * 100) /
-      100;
+      Math.round(slotValue * template[slot] * 100) / 100;
     totalValue += avgMap[`${template[slot]}x ${slot}`];
     return avgMap;
   }, {});
   totalValue = Math.round(totalValue * 100) / 100;
-  console.log(JSON.stringify(avgValue, null, 2));
+
+  for(const avgValueKey in avgValue){
+    console.log(` • ${avgValueKey}: $${avgValue[avgValueKey]}`);
+  }
   return totalValue;
 }
 
