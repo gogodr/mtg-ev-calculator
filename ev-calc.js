@@ -38,7 +38,7 @@ async function calcEv(set, template) {
   totalValue = Math.round(totalValue * 100) / 100;
 
   for(const avgValueKey in avgValue){
-    console.log(` • ${avgValueKey}: $${avgValue[avgValueKey]}`);
+    console.log(` • ${avgValueKey}: \x1b[32m$${avgValue[avgValueKey]}\x1b[0m`);
   }
   return totalValue;
 }

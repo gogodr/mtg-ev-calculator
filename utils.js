@@ -17,7 +17,6 @@ function needsUpdate(setSlug) {
     console.log(`No set data found for ${setSlug}, updating...`);
     return true;
   }
-  console.log(`Set data for ${setSlug} up to date, using local data...`);
   return false;
 }
 
